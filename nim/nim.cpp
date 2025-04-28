@@ -17,7 +17,162 @@ using std::endl;
 using std::string;
 
 
-int client();
+int client() {
+    // Initialize Winsock
+    WSADATA wsaData;
+    int iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
+
+    if (iResult != 0) {
+        cout << "WSAStartup() failed: " << iResult << endl;
+        WSACleanup();
+        return 1;
+    }
+
+    // Create Socket
+    SOCKET GameSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+    if (GameSocket == INVALID_SOCKET) {
+        cout << "Error at socket(): " << WSAGetLastError() << endl;
+        WSACleanup();
+        return 1;
+    }
+
+    // Enter name
+    char client_name[100];
+    cout << "Enter name:" << endl;
+    cin.getline(client_name, sizeof(client_name));
+
+    // Enter loop to allow for multiple challenges if unsuccessful
+    bool challenging = true;
+    while (challenging) {
+        challenging = false;
+
+        // Doscover servers (send 'Who?')
+        ServerStruct servers[MAX_SERVERS];
+        int availableServers = getServers(GameSocket, servers);
+
+        cout << endl << "Servers available:" << endl;
+        if (availableServers > 0) {
+            for (int i = 0; i < availableServers; i++) {
+                cout << (i + 1) << " - " << servers[i].name << endl;
+            }
+        }
+        else {
+            cout << "Could not find servers." << endl;
+            closesocket(GameSocket);
+            WSACleanup();
+            return 1;
+        }
+
+        // Choose server to challenge
+        bool validChoice = false;
+        int serverChoice;
+        while (!validChoice) {
+            cout << "Choose server number to challenge:" << endl;
+            cin >> serverChoice;
+
+            if (serverChoice < 1 || serverChoice > availableServers) {
+                cout << "Invalid choice." << endl;
+                cout << "Please select a number between 1 and " << availableServers << "." << endl;
+            }
+            else {
+                validChoice = true;
+            }
+        }
+
+        struct sockaddr_in serverAddr = servers[serverChoice - 1].addr;
+        char sendbuf[DEFAULT_BUFLEN];
+        char recvbuf[DEFAULT_BUFLEN];
+        int senderAddrSize = sizeof(serverAddr);
+        serverAddr.sin_port = htons(DEFAULT_PORT);
+
+        // Construct 'Player=' message
+        strcpy_s(sendbuf, DEFAULT_BUFLEN, Player_NAME);
+        strcat_s(sendbuf, DEFAULT_BUFLEN, client_name);
+
+        // Send challenge to server
+        iResult = sendto(GameSocket, sendbuf, strlen(sendbuf) + 1, 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
+        if (iResult == SOCKET_ERROR) {
+            cout << "sendto() failed: " << WSAGetLastError() << endl;
+            closesocket(GameSocket);
+            WSACleanup();
+            return 1;
+        }
+        cout << "Server challenged." << endl;
+
+        // wait for server response
+        int waitResult = wait(GameSocket, 10, 0);
+        if (waitResult == 0) {
+            cout << "Server was not ready." << endl;
+            closesocket(GameSocket);
+            WSACleanup();
+            return 1;
+        }
+
+        // Recieve response from server
+        iResult = recvfrom(GameSocket, recvbuf, DEFAULT_BUFLEN - 1, 0, (sockaddr*)&serverAddr, &senderAddrSize);
+        if (iResult == SOCKET_ERROR) {
+            cout << "recvfrom() failed: " << WSAGetLastError() << endl;
+            closesocket(GameSocket);
+            WSACleanup();
+            return 1;
+        }
+
+        recvbuf[iResult] = '\0'; // add null terminator
+
+        cout << "Server responded: " << recvbuf << endl;
+
+        //parse response
+        if (_stricmp(recvbuf, "NO") == 0) {
+            cout << "Server declined challenge." << endl;
+            cout << "Would you like to (1) Challenge another server, or (2) quit." << endl;
+            int quitSelect = 0;
+            cin >> quitSelect;
+
+            if (quitSelect == 1) {
+                challenging = true;
+            }
+            else {
+                if (quitSelect != 2) { cout << "Invalid input. "; }
+                cout << "Quitting..." << endl;
+                closesocket(GameSocket);
+                WSACleanup();
+                return 1;
+            }
+        }
+        else if (_stricmp(recvbuf, "YES") == 0) {
+            cout << "Server accepted challenge." << endl;
+
+            // send 'GREAT!'
+            strcpy_s(sendbuf, DEFAULT_BUFLEN, "GREAT!");
+            iResult = sendto(GameSocket, sendbuf, strlen(sendbuf) + 1, 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
+            if (iResult == SOCKET_ERROR) {
+                cout << "sendto() failed: " << WSAGetLastError() << endl;
+                closesocket(GameSocket);
+                WSACleanup();
+                return 1;
+            }
+            cout << "Sent 'GREAT!' to server." << endl;
+
+            // Negotiation complete, start game
+            cout << "Negotiation complete. Game starting now..." << endl;
+            startGame();
+        }
+        else {
+            cout << "Invalid response from server." << endl;
+            closesocket(GameSocket);
+            WSACleanup();
+            return 1;
+        }
+    }
+
+    // Close socket and cleanup
+    closesocket(GameSocket);
+    WSACleanup();
+
+    return 0;
+
+}
 
 
 void startGame();
