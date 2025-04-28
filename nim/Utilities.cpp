@@ -21,7 +21,7 @@ int getServers(SOCKET s, ServerStruct server[])
 
 	sockaddr_in broadcastAddress = GetBroadcastAddress(IPAddress, subnetMask);
 
-	int iResult = sendto(s, Study_QUERY, strlen(Study_QUERY) + 1, 0, (sockaddr*)&broadcastAddress, sizeof(broadcastAddress));
+	int iResult = sendto(s, Game_QUERY, strlen(Game_QUERY) + 1, 0, (sockaddr*)&broadcastAddress, sizeof(broadcastAddress));
 	char recvBuf[DEFAULT_BUFLEN];
 
 	int status = wait(s, 2, 0);
