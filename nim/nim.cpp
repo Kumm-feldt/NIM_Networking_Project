@@ -7,6 +7,7 @@
 #include<cctype>
 #include <cstring>
 #include "nim.hpp"
+#include "nim_game.cpp"
 #include <string>
 
 #define _CRT_SECURE_NO_WARNINGS
