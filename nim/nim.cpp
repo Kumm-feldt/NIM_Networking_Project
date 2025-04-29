@@ -47,7 +47,7 @@ int client() {
     while (challenging) {
         challenging = false;
 
-        // Doscover servers (send 'Who?')
+        // Discover servers (send 'Who?')
         ServerStruct servers[MAX_SERVERS];
         int availableServers = getServers(GameSocket, servers);
 
@@ -81,17 +81,18 @@ int client() {
         }
 
         struct sockaddr_in serverAddr = servers[serverChoice - 1].addr;
+        int serverAddrSize = sizeof(serverAddr);
+        serverAddr.sin_port = htons(DEFAULT_PORT);
+        
         char sendbuf[DEFAULT_BUFLEN];
         char recvbuf[DEFAULT_BUFLEN];
-        int senderAddrSize = sizeof(serverAddr);
-        serverAddr.sin_port = htons(DEFAULT_PORT);
 
         // Construct 'Player=' message
         strcpy_s(sendbuf, DEFAULT_BUFLEN, Player_NAME);
         strcat_s(sendbuf, DEFAULT_BUFLEN, client_name);
 
         // Send challenge to server
-        iResult = sendto(GameSocket, sendbuf, strlen(sendbuf) + 1, 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
+        iResult = sendto(GameSocket, sendbuf, strlen(sendbuf) + 1, 0, (sockaddr*)&serverAddr, serverAddrSize);
         if (iResult == SOCKET_ERROR) {
             cout << "sendto() failed: " << WSAGetLastError() << endl;
             closesocket(GameSocket);
@@ -110,7 +111,7 @@ int client() {
         }
 
         // Recieve response from server
-        iResult = recvfrom(GameSocket, recvbuf, DEFAULT_BUFLEN - 1, 0, (sockaddr*)&serverAddr, &senderAddrSize);
+        iResult = recvfrom(GameSocket, recvbuf, DEFAULT_BUFLEN - 1, 0, (sockaddr*)&serverAddr, &serverAddrSize);
         if (iResult == SOCKET_ERROR) {
             cout << "recvfrom() failed: " << WSAGetLastError() << endl;
             closesocket(GameSocket);
@@ -145,7 +146,7 @@ int client() {
 
             // send 'GREAT!'
             strcpy_s(sendbuf, DEFAULT_BUFLEN, "GREAT!");
-            iResult = sendto(GameSocket, sendbuf, strlen(sendbuf) + 1, 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
+            iResult = sendto(GameSocket, sendbuf, strlen(sendbuf) + 1, 0, (sockaddr*)&serverAddr, serverAddrSize);
             if (iResult == SOCKET_ERROR) {
                 cout << "sendto() failed: " << WSAGetLastError() << endl;
                 closesocket(GameSocket);
