@@ -46,6 +46,7 @@ void startGame(SOCKET GameSocket,
             // 2) Prompt user
           
             std::cout << "Enter move (e.g. 203), 'Cmessage' for chat, or 'F' to forfeit:\n> ";
+            cin.ignore();
             cin.getline(input, 80); // then add +1 for the null terminator
 
             // 3) Chat?
