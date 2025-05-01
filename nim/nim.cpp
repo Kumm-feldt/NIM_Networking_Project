@@ -40,7 +40,7 @@ void startGame(SOCKET GameSocket,
 
         if (myTurn) {
             // 1) Display board
-            std::cout << "Current board: ";
+            std::cout << "Current board: \n";
             game.boardGUI();
 
             // 2) Prompt user
