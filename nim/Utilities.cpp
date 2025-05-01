@@ -18,7 +18,7 @@ int getServers(SOCKET s, ServerStruct server[])
 	// [OUT] server			 : Array in which all the available servers' information will be saved
 	// Return value			 : The number of currently available servers
 	int numServers = 0;
-	char IPAddress[20] = "10.230.32.68", subnetMask[20] = "255.255.248.0";
+	char IPAddress[20] = "10.35.82.114", subnetMask[20] = "255.255.240.0";
 
 	// Necessary to be able to send a broadcast message
 	BOOL bOptVal = TRUE;

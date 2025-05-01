@@ -281,8 +281,11 @@ std::string NimGame::makeMoveString(int pileIndex, int removeCount) {
 }
 
 std::pair<int, int> NimGame::parseMoveString(const std::string& moveStr) {
-    if (moveStr.size() != 3 || moveStr[0] < '1' || moveStr[0] > '9')
+    if (moveStr.size() != 3 || moveStr[0] < '1' || moveStr[0] > '9') {
+        cout << "Size: " << moveStr.size() << " / moveStr[0] / <<" << moveStr[0] << endl;
         throw std::invalid_argument("parseMoveString: invalid format.");
+
+    }
     int pile = moveStr[0] - '1';
     std::string part = moveStr.substr(1, 2);
     for (char c : part) if (!std::isdigit(c)) throw std::invalid_argument("parseMoveString: invalid digits.");

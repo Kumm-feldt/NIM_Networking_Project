@@ -45,9 +45,9 @@ void startGame(SOCKET GameSocket,
 
             // 2) Prompt user
           
-            std::cout << "Enter move (e.g. 203), 'Cmessage' for chat, or 'F' to forfeit:\n> ";
-            cin.ignore();
-            cin.getline(input, 80); // then add +1 for the null terminator
+            std::cout << "Enter move (e.g. 203), 'Cmessage' for chat, or 'F' to forfeit:\n ";
+            std::cout << "> ";
+            std::cin.getline(input, 80);
 
             // 3) Chat?
             if (NimGame::isChatString(input)) {
@@ -74,8 +74,10 @@ void startGame(SOCKET GameSocket,
 
             // 5) Move
             try {
+                cout << "input: " << input << endl;
+
                 auto [pile, cnt] = NimGame::parseMoveString(input);
-                cout << "pile: " << pile << " & cnt: " << cnt << endl;
+                cout << "pile: " << (pile + 1) << " & cnt: " << cnt << endl;
                 if (!game.makeMove(pile, cnt)) {
                     std::cout << "Invalid move! You lose by default.\n";
                     break;
@@ -100,19 +102,23 @@ void startGame(SOCKET GameSocket,
                 break;
             }
 
-            char buf[DEFAULT_BUFLEN];
-            int got = recvfrom(GameSocket,
+            char buf[MAX_MESSAGE];
+            int iResult = recvfrom(GameSocket,
                 buf,
-                DEFAULT_BUFLEN - 1,
+                MAX_MESSAGE - 1,
                 0,
                 (sockaddr*)&fromAddr,
                 &fromLen);
-            if (got <= 0) {
+
+            buf[iResult] = '\0';   // make sure it’s terminated
+
+            if (iResult <= 0) {
                 std::cout << "Recv error or timeout. You win!\n";
                 break;
             }
-            buf[got] = '\0';
+
             std::string msg(buf);
+           
 
             // Chat?
             if (NimGame::isChatString(msg)) {
@@ -127,6 +133,7 @@ void startGame(SOCKET GameSocket,
             }
             // Move
             try {
+                cout << "msg: " << msg << endl;
                 auto [pile, cnt] = NimGame::parseMoveString(msg);
                 if (!game.makeMove(pile, cnt)) {
                     std::cout << "Opponent made invalid move. You win by default!\n";
