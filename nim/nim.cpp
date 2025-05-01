@@ -28,7 +28,7 @@ void startGame(SOCKET GameSocket,
     NimGame& game)
 {
 
-    char input[80];
+    char input[MAX_MESSAGE];
     // For recvfrom:
     sockaddr_in fromAddr;
     socklen_t fromLen = sizeof(fromAddr);
@@ -45,9 +45,9 @@ void startGame(SOCKET GameSocket,
 
             // 2) Prompt user
           
-            std::cout << "Enter move (e.g. 203), 'Cmessage' for chat, or 'F' to forfeit:\n ";
+            std::cout << "Enter move (e.g. mnn), 'Cmessage' for chat, or 'F' to forfeit:\n";
             std::cout << "> ";
-            std::cin.getline(input, 80);
+            std::cin.getline(input, MAX_MESSAGE);
 
             // 3) Chat?
             if (NimGame::isChatString(input)) {
@@ -74,7 +74,6 @@ void startGame(SOCKET GameSocket,
 
             // 5) Move
             try {
-                cout << "input: " << input << endl;
 
                 auto [pile, cnt] = NimGame::parseMoveString(input);
                 cout << "pile: " << (pile + 1) << " & cnt: " << cnt << endl;
@@ -110,6 +109,11 @@ void startGame(SOCKET GameSocket,
                 (sockaddr*)&fromAddr,
                 &fromLen);
 
+            if (fromAddr.sin_addr.S_un.S_addr != peerAddr.sin_addr.S_un.S_addr ||
+                fromAddr.sin_port != peerAddr.sin_port)
+                continue;
+
+
             buf[iResult] = '\0';   // make sure it’s terminated
 
             if (iResult <= 0) {
@@ -133,7 +137,6 @@ void startGame(SOCKET GameSocket,
             }
             // Move
             try {
-                cout << "msg: " << msg << endl;
                 auto [pile, cnt] = NimGame::parseMoveString(msg);
                 if (!game.makeMove(pile, cnt)) {
                     std::cout << "Opponent made invalid move. You win by default!\n";
@@ -182,7 +185,7 @@ int client() {
     }
 
     // Enter name
-    char client_name[80];
+    char client_name[MAX_MESSAGE];
     cout << "Enter name:" << endl;
     cin.ignore();
     cin.getline(client_name, sizeof(client_name));
@@ -257,6 +260,8 @@ int client() {
 
         // Recieve response from server
         iResult = recvfrom(GameSocket, recvbuf, DEFAULT_BUFLEN - 1, 0, (sockaddr*)&serverAddr, &serverAddrSize);
+
+      
         if (iResult == SOCKET_ERROR) {
             cout << "recvfrom() failed: " << WSAGetLastError() << endl;
             closesocket(GameSocket);
