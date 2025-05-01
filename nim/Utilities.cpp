@@ -1,9 +1,14 @@
 #include <iostream>
 #include <WinSock2.h>
 #include <ws2tcpip.h>
+#include <cstdlib>
 #include <iphlpapi.h>
 #include "nim.hpp"
+#include <ctime>
 
+using std::cin;
+using std::cout;
+using std::endl;
 #pragma comment (lib, "iphlpapi.lib")
 
 int getServers(SOCKET s, ServerStruct server[])
@@ -13,7 +18,7 @@ int getServers(SOCKET s, ServerStruct server[])
 	// [OUT] server			 : Array in which all the available servers' information will be saved
 	// Return value			 : The number of currently available servers
 	int numServers = 0;
-	char IPAddress[20] = "10.35.86.152", subnetMask[20] = "255.255.240.0";
+	char IPAddress[20] = "10.230.32.68", subnetMask[20] = "255.255.248.0";
 
 	// Necessary to be able to send a broadcast message
 	BOOL bOptVal = TRUE;

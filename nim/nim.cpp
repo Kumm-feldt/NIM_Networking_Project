@@ -1,14 +1,18 @@
 
 
-#pragma once
 #include <iostream>       
 #include <ws2tcpip.h>     // Windows sockets (TCP/IP functions)
 #include <WinSock2.h>     // Windows sockets main header
 #include<cctype>
 #include <cstring>
 #include "nim.hpp"
-#include "nim_game.cpp"
+#include "NimGame.hpp"
 #include <string>
+#pragma comment(lib, "Ws2_32.lib")
+#pragma once
+
+
+
 
 #define _CRT_SECURE_NO_WARNINGS
 
@@ -16,6 +20,136 @@ using std::cin;
 using std::cout;
 using std::endl;
 using std::string;
+
+
+void startGame(SOCKET GameSocket,
+    const sockaddr_in& peerAddr,
+    bool amHosting,
+    NimGame& game)
+{
+
+    char input[80];
+    // For recvfrom:
+    sockaddr_in fromAddr;
+    socklen_t fromLen = sizeof(fromAddr);
+
+    while (!game.isGameOver()) {
+        auto turn = game.getCurrentPlayer();
+        bool myTurn = (amHosting && turn == NimGame::Player::Host)
+            || (!amHosting && turn == NimGame::Player::Challenger);
+
+        if (myTurn) {
+            // 1) Display board
+            std::cout << "Current board: ";
+            game.boardGUI();
+
+            // 2) Prompt user
+          
+            std::cout << "Enter move (e.g. 203), 'Cmessage' for chat, or 'F' to forfeit:\n> ";
+            cin.getline(input, 80); // then add +1 for the null terminator
+
+            // 3) Chat?
+            if (NimGame::isChatString(input)) {
+                sendto(GameSocket,
+                    input,
+                    strlen(input)+1, // add null terminator
+                    0,
+                    (sockaddr*)&peerAddr,
+                    sizeof(peerAddr));
+                continue;
+            }
+
+            // 4) Forfeit?
+            if (NimGame::isForfeitString(input)) {
+                sendto(GameSocket,
+                    "F",
+                    2,
+                    0,
+                    (sockaddr*)&peerAddr,
+                    sizeof(peerAddr));
+                game.forfeit();
+                break;
+            }
+
+            // 5) Move
+            try {
+                auto [pile, cnt] = NimGame::parseMoveString(input);
+                if (!game.makeMove(pile, cnt)) {
+                    std::cout << "Invalid move! You lose by default.\n";
+                    break;
+                }
+                std::string moveStr = NimGame::makeMoveString(pile, cnt);
+                sendto(GameSocket,
+                    moveStr.c_str(),
+                    int(moveStr.size()) + 1,
+                    0,
+                    (sockaddr*)&peerAddr,
+                    sizeof(peerAddr));
+            }
+            catch (const std::exception& e) {
+                std::cout << "Bad move format: " << e.what() << "\nTry again.\n";
+            }
+        }
+        else {
+            // ==== OPPONENT’S TURN ====
+            int ready = wait(GameSocket, 30, 0);
+            if (ready == 0) {
+                std::cout << "Opponent timed out. You win!\n";
+                break;
+            }
+
+            char buf[DEFAULT_BUFLEN];
+            int got = recvfrom(GameSocket,
+                buf,
+                DEFAULT_BUFLEN - 1,
+                0,
+                (sockaddr*)&fromAddr,
+                &fromLen);
+            if (got <= 0) {
+                std::cout << "Recv error or timeout. You win!\n";
+                break;
+            }
+            buf[got] = '\0';
+            std::string msg(buf);
+
+            // Chat?
+            if (NimGame::isChatString(msg)) {
+                std::cout << "[Opponent] " << NimGame::parseChat(msg) << "\n";
+                continue;
+            }
+            // Forfeit?
+            if (NimGame::isForfeitString(msg)) {
+                game.forfeit();
+                std::cout << "Opponent forfeited. You win!\n";
+                break;
+            }
+            // Move
+            try {
+                auto [pile, cnt] = NimGame::parseMoveString(msg);
+                if (!game.makeMove(pile, cnt)) {
+                    std::cout << "Opponent made invalid move. You win by default!\n";
+                    break;
+                }
+                std::cout << "Opponent removed " << cnt
+                    << " from pile " << (pile + 1) << ".\n";
+            }
+            catch (...) {
+                std::cout << "Opponent sent invalid data. You win!\n";
+                break;
+            }
+        }
+    }
+
+    // Game over: announce
+    switch (game.getWinner()) {
+    case NimGame::Player::Challenger:
+        std::cout << "Challenger wins!\n"; break;
+    case NimGame::Player::Host:
+        std::cout << "Host wins!\n";       break;
+    default:
+        std::cout << "Game ended in a draw?\n"; break;
+    }
+}
 
 
 int client() {
@@ -39,8 +173,9 @@ int client() {
     }
 
     // Enter name
-    char client_name[100];
+    char client_name[80];
     cout << "Enter name:" << endl;
+    cin.ignore();
     cin.getline(client_name, sizeof(client_name));
 
     // Enter loop to allow for multiple challenges if unsuccessful
@@ -157,8 +292,39 @@ int client() {
             cout << "Sent 'GREAT!' to server." << endl;
 
             // Negotiation complete, start game
-            cout << "Negotiation complete. Game starting now..." << endl;
-            startGame();
+            cout << "Negotiation complete. Starting Game..." << endl;
+
+
+            // wait for server response
+            int waitResult = wait(GameSocket, 30, 0);
+            if (waitResult == 0) {
+                cout << "Board not sent on time.\nYou won by default." << endl;
+                closesocket(GameSocket);
+                WSACleanup();
+                return 1;
+            }
+
+            // Recieve response from server
+            iResult = recvfrom(GameSocket, recvbuf, DEFAULT_BUFLEN - 1, 0, (sockaddr*)&serverAddr, &serverAddrSize);
+            if (iResult == SOCKET_ERROR) {
+                cout << "recvfrom() failed: " << WSAGetLastError() << endl;
+                closesocket(GameSocket);
+                WSACleanup();
+                return 1;
+            }
+
+            std::string boardStr(recvbuf);
+            bool validBoard = NimGame::validatePiles(boardStr);
+            if (!validBoard) {
+                cout << "Not Valid Board.\nYou won by default." << endl;
+                closesocket(GameSocket);
+                WSACleanup();
+                return 1;
+            }
+            NimGame game(boardStr);
+            startGame(GameSocket, serverAddr, false, game);
+
+
         }
         else {
             cout << "Invalid response from server." << endl;
@@ -177,10 +343,10 @@ int client() {
 }
 
 
-void startGame();
 
 int server() {
     char server_name[100];
+    std::string iniBoard = "";
 
     // ---------------------------
     // 1. Initialize Winsock (Windows Socket API)
@@ -208,43 +374,8 @@ int server() {
 
 
     // -------------------------
-    // 3. Get input from user and discover
+    // 3. Bind
     // --------------------------
-    ServerStruct servers[MAX_SERVERS];
-
-
-    cout << "Enter Name: \n";
-    cin.getline(server_name, sizeof(server_name));
-
-    // Broadcast "Who?"
-    int availableServers = getServers(GameSocket, servers);
-    cout << "\nServers available: \n";
-
-    if (availableServers > 0) {
-        for (int i = 0; i < availableServers; i++) {
-            cout << (i + 1) << " - " << servers[i].name << "\n";
-        }
-    }
-    else {
-        cout << "No servers available\n";
-        closesocket(GameSocket);
-        WSACleanup();
-        return 1;
-    }
-
-    int serverInt;
-    cout << "Choose Server #\n> ";
-    cin >> serverInt;
-
-
-    // Invalid server number
-    if (serverInt > availableServers || serverInt < 1) {
-        cout << "Invalid Server\n";
-        closesocket(GameSocket);
-        WSACleanup();
-        return 1;
-    }
-
     // Data in the sin_port and sin_addr members of the sockaddr_in struct need to be in network byte order.
     struct sockaddr_in myAddr;
     myAddr.sin_family = AF_INET;
@@ -259,6 +390,13 @@ int server() {
         return 1;
     }
 
+
+
+    cout << "Enter Name: ";
+    cin.ignore();
+    cin.getline(server_name, sizeof(server_name));
+
+
     // ---------------------------
     // 4. Receive & send messages
     // ---------------------------
@@ -270,8 +408,8 @@ int server() {
     struct sockaddr_in senderAddr;
     int senderAddrSize = sizeof(senderAddr);
 
-    bool checkWait = false;
-
+    cout << "Server Hosted Succesfully...\n";
+    bool gameStarted = false;
 
     // Wait for response
 
@@ -287,12 +425,12 @@ int server() {
         }
 
 
-        if (iResult > 0 ) {  // Success
+        if (iResult > 0) {  // Success
             recvbuf[iResult] = '\0'; // Ensure null termination
             cout << "Received: " << recvbuf << "\n";
 
 
-           
+
             if (strcmp(recvbuf, Game_QUERY) == 0) {    // Who?
                 // Format: "Name=servername"
                 strcpy_s(sendbuf, DEFAULT_BUFLEN, Server_NAME);
@@ -311,10 +449,10 @@ int server() {
                 int userResponse;
 
                 // * user has been challenged * //
-                
-                cout << "---------------------------------------------------------------------------------------";
-                cout << "You have been challenged to a game by: " << clientName <<"\n";
-                cout << "---------------------------------------------------------------------------------------";
+
+                cout << "---------------------------------------------------------------\n";
+                cout << "You have been challenged to a game by: " << clientName << "\n";
+                cout << "---------------------------------------------------------------\n";
 
                 cout << "Accept game:\n";
                 cout << "1. YES\n";
@@ -325,7 +463,7 @@ int server() {
                 if (userResponse == 1) {
                     // * user accepted challenge * //
                     strcpy_s(sendbuf, DEFAULT_BUFLEN, "YES");
-                    
+
 
                     // Send response to client
                     iResult = sendto(GameSocket, sendbuf, strlen(sendbuf) + 1, 0,
@@ -335,7 +473,7 @@ int server() {
 
                     // after "YES" wait 2 seconds
                     int ready = wait(GameSocket, 2, 0);
-                    
+
                     if (ready == 0) {
                         // timeout
                         // User not ready to play...
@@ -357,8 +495,36 @@ int server() {
                             cout << "Received: " << recvbuf << "\n";
 
                             if (strcmp(recvbuf, "GREAT!") == 0) {
-                               
+
                                 // * End negotiations && start game* 
+                                gameStarted = true;
+
+
+                                // Server specifies board
+                                iniBoard = NimGame::getBoard();
+
+                                // * Send board * //
+
+                                const char* boardBuf = iniBoard.c_str();      // raw C-string pointer
+                                size_t  boardLen = iniBoard.size() + 1;      // include the terminating '\0'
+
+                                // Send response to client
+                                iResult = sendto(GameSocket, boardBuf, boardLen, 0,
+                                    (struct sockaddr*)&senderAddr, senderAddrSize);
+
+                                bool validBoard = NimGame::validatePiles(iniBoard);
+                                if (!validBoard) {
+                                    cout << "Not Valid Board.\nYou lost by default." << endl;
+                                    closesocket(GameSocket);
+                                    WSACleanup();
+                                    return 1;
+                                }
+
+                                NimGame::boardGUIst(iniBoard);
+                                NimGame game(iniBoard);
+
+                                startGame(GameSocket, senderAddr, true, game);
+
                                 break;
 
                             }
@@ -374,7 +540,7 @@ int server() {
 
 
                 }
-                else if(userResponse == 2){
+                else if (userResponse == 2) {
                     strcpy_s(sendbuf, DEFAULT_BUFLEN, "NO");
                     // Send response to client
                     iResult = sendto(GameSocket, sendbuf, strlen(sendbuf) + 1, 0,
@@ -389,33 +555,33 @@ int server() {
                 }
 
             }
-            
-        }else if (iResult == 0) {  // Connection closed
+
+
+        }
+        else if (iResult == 0) {  // Connection closed
             cout << "Connection closed by client" << endl;
             continue;
         }
     }
 
+  
+   
 
-    // --------------------------------
-    // Negotiation is over, Start Game
-    // --------------------------------
-    startGame();
+        // ---------------------------
+        // 5. Cleanup & Disconnect
+        // ---------------------------
+        closesocket(GameSocket);  // Close socket
+        WSACleanup();              // Cleanup Winsock
+
+        return 0;  // Exit successfully
+    }
 
 
 
-    // ---------------------------
-    // 5. Cleanup & Disconnect
-    // ---------------------------
-    closesocket(GameSocket);  // Close socket
-    WSACleanup();              // Cleanup Winsock
-
-    return 0;  // Exit successfully
-}
 
 int main() {
     int action = 0;
-
+    
     do {
         cout << "Choose an option: (1) Join | (2) Host | (3) Exit\n";
         cin >> action;
@@ -438,4 +604,6 @@ int main() {
     } while (action != 3);
 
     return 0;
-}
+    
+  
+    }
