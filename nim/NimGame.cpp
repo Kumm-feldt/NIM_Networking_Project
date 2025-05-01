@@ -119,7 +119,9 @@ void NimGame::boardGUIst(std::string board) {
 
 
 void NimGame::initialize(std::string board) {
+   // piles_ = initialPiles_ = parseBoardString(board);
 
+    this->pileNum = (board.size() - 1)/2;
     this->board = board;
     currentPlayer_ = Player::Challenger;
     winner_ = Player::None;
@@ -128,30 +130,72 @@ void NimGame::initialize(std::string board) {
 }
 
 bool NimGame::isValidMove(int pileIndex, int removeCount) const {
-    if (pileIndex < 0 || pileIndex >= static_cast<int>(piles_.size()))
+    if (board.size() < 1) return false;
+
+    int m = board[0] - '0';
+    if (m < 3 || m > 9)               
         return false;
-    if (removeCount < 1 || removeCount > piles_[pileIndex])
+
+    if (pileIndex < 0 || pileIndex >= m)
         return false;
+
+    int offset = 1 + 2 * pileIndex;
+    if (offset + 2 > (int)board.size())
+        return false;               // malformed string
+
+    int pileCount = std::stoi(board.substr(offset, 2));
+
+    if (removeCount < 1 || removeCount > pileCount)
+        return false;
+
     return true;
 }
 
+
 bool NimGame::makeMove(int pileIndex, int removeCount) {
     if (gameOver_)
-        throw std::logic_error("makeMove: game already ended.");
+        throw std::logic_error("Game already over");
     if (!isValidMove(pileIndex, removeCount)) {
-        winner_ = (currentPlayer_ == Player::Challenger ? Player::Host : Player::Challenger);
+        // invalid move => opponent loses
+        winner_ = (currentPlayer_ == Player::Challenger
+            ? Player::Host
+            : Player::Challenger);
         gameOver_ = true;
         return false;
     }
-    piles_[pileIndex] -= removeCount;
-    bool empty = std::all_of(piles_.begin(), piles_.end(), [](int n) { return n == 0; });
-    if (empty) {
+
+    
+    int offset = 1 + 2 * pileIndex;
+
+    int oldCount = std::stoi(board.substr(offset, 2));
+    int newCount = oldCount - removeCount;
+
+    // Calculate each digit:
+    char tens = char('0' + (newCount / 10));
+    char ones = char('0' + (newCount % 10));
+
+    // Overwrite directly in your board string:
+    board[offset] = tens;
+    board[offset + 1] = ones;
+
+
+    // Check for game-over by scanning every pile’s two-digit field:
+    bool allZero = true;
+    int m = board[0] - '0';
+    for (int i = 0; i < m; ++i) {
+        int cnt = std::stoi(board.substr(1 + 2 * i, 2));
+        if (cnt > 0) { allZero = false; 
+        break; }
+    }
+
+    if (allZero) {
         winner_ = currentPlayer_;
         gameOver_ = true;
     }
     else {
         switchTurn();
     }
+
     return true;
 }
 
@@ -163,7 +207,7 @@ void NimGame::forfeit() {
 }
 
 void NimGame::restart() {
-    piles_ = initialPiles_;
+   // piles_ = initialPiles_;
     currentPlayer_ = Player::Challenger;
     winner_ = Player::None;
     gameOver_ = false;
@@ -185,21 +229,8 @@ void NimGame::switchTurn() {
     currentPlayer_ = (currentPlayer_ == Player::Challenger ? Player::Host : Player::Challenger);
 }
 
-std::string NimGame::getBoardString() const {
-    int m = static_cast<int>(piles_.size());
-    if (m < 3 || m > 9)
-        throw std::logic_error("getBoardString: number of heaps out of range (3-9).");
 
-    std::ostringstream oss;
-    oss << m;
-    for (int n : piles_) {
-        if (n < 0 || n > 99)
-            throw std::logic_error("getBoardString: rock count out of range (0-99).");
-        if (n < 10) oss << '0' << n;
-        else oss << n;
-    }
-    return oss.str();
-}
+
 
 // Network integration helpers
 std::string NimGame::makeBoardString(const std::vector<int>& piles) {
@@ -217,7 +248,7 @@ std::string NimGame::makeBoardString(const std::vector<int>& piles) {
 }
 
 
-/*
+
 std::vector<int> NimGame::parseBoardString(const std::string& boardStr) {
     if (boardStr.empty())
         throw std::invalid_argument("parseBoardString: empty string.");
@@ -236,7 +267,7 @@ std::vector<int> NimGame::parseBoardString(const std::string& boardStr) {
     }
     return piles;
 }
-*/
+
 std::string NimGame::makeMoveString(int pileIndex, int removeCount) {
     if (pileIndex < 0 || pileIndex > 8)
         throw std::invalid_argument("makeMoveString: invalid heap index (0-8).");

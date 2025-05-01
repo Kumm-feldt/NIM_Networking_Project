@@ -75,6 +75,7 @@ void startGame(SOCKET GameSocket,
             // 5) Move
             try {
                 auto [pile, cnt] = NimGame::parseMoveString(input);
+                cout << "pile: " << pile << " & cnt: " << cnt << endl;
                 if (!game.makeMove(pile, cnt)) {
                     std::cout << "Invalid move! You lose by default.\n";
                     break;

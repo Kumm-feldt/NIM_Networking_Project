@@ -43,12 +43,12 @@ public:
     std::string board;
     static bool validatePiles(std::string board);
     static void boardGUIst(std::string board);
+    std::vector<int> parseBoardString(const std::string& boardStr);
 private:
-    std::vector<int> initialPiles_;
-    std::vector<int> piles_;
+
     Player currentPlayer_ = Player::Challenger;
     Player winner_ = Player::None;
     bool gameOver_ = false;
-
+    int pileNum;
     void switchTurn();
 };
