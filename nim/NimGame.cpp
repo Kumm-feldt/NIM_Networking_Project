@@ -28,11 +28,10 @@ std::string NimGame::getBoard() {
     cout << "Please specify number of Piles: \n> ";
     cin >> pileSize;
 
-
     cout << "Please specify number of Rocks per Pile: \n";
     for (int i = 0; i < pileSize ; i++)
     {
-        cout << "> " << (i + 1);
+        cout << "> ";
         cin >> rocks;
         if (rocks < 10) {
             board.push_back("0" + std::to_string(rocks));
