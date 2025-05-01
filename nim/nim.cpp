@@ -520,7 +520,6 @@ int server() {
                                     return 1;
                                 }
 
-                                NimGame::boardGUIst(iniBoard);
                                 NimGame game(iniBoard);
 
                                 startGame(GameSocket, senderAddr, true, game);
@@ -577,7 +576,18 @@ int server() {
     }
 
 
+   std::string st(std::vector<std::string>b) {
+       std::string board = std::to_string(b.size());
 
+
+      
+        for (std::string n : b) {
+            board += n;
+     
+
+        }
+        return board;
+    }
 
 int main() {
     int action = 0;

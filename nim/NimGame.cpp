@@ -9,17 +9,17 @@ using std::endl;
 
 
 std::string boardToStr(std::vector<std::string>b) {
-    std::string board = std::to_string(b.size()); // start board format with m
+    std::string board = std::to_string(b.size());
 
     for (std::string n : b) {
         board += n;
+
     }
     return board;
 }
 
 std::string NimGame::getBoard() {
     int pileSize = 0;
-    int rocks = 0;
     std::string strBoard = "";
     std::vector<std::string>board;
 
@@ -29,8 +29,10 @@ std::string NimGame::getBoard() {
     cin >> pileSize;
 
     cout << "Please specify number of Rocks per Pile: \n";
-    for (int i = 0; i < pileSize ; i++)
+    for (int i = 0; i < pileSize ; ++i)
     {
+        int rocks;
+
         cout << "> ";
         cin >> rocks;
         if (rocks < 10) {
@@ -43,7 +45,7 @@ std::string NimGame::getBoard() {
 
     }
     strBoard = boardToStr(board);
-
+    
     return strBoard;
 
 }
@@ -88,7 +90,7 @@ void NimGame::boardGUI() {
 
     int numPiles = this->board[0] - '0';
 
-    for (int i = 1; i < numPiles; ++i)
+    for (int i = 0; i < numPiles; ++i)
     {
         int offset = 1 + 2 * i;
         std::string rocksStr = this->board.substr(offset, 2);
@@ -104,7 +106,7 @@ void NimGame::boardGUIst(std::string board) {
 
     int numPiles = board[0] - '0';
 
-    for (int i = 1; i < numPiles; ++i)
+    for (int i = 0; i < numPiles; ++i)
     {
         int offset = 1 + 2 * i;
         std::string rocksStr = board.substr(offset, 2);
